@@ -1,77 +1,122 @@
 package ru.kata.spring.boot_security.demo.service;
 
-
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import ru.kata.spring.boot_security.demo.dao.RoleDao;
-import ru.kata.spring.boot_security.demo.dao.UserDao;
+import org.springframework.transaction.annotation.Transactional;
+import ru.kata.spring.boot_security.demo.dao.RoleDaoImpl;
+
+import ru.kata.spring.boot_security.demo.dao.UserDaoImpl;
 import ru.kata.spring.boot_security.demo.model.Role;
 import ru.kata.spring.boot_security.demo.model.User;
 
-import javax.persistence.EntityManager;
-import javax.persistence.PersistenceContext;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
-/**
- * Service class for {@link User}
- */
 @Service
-public class UserServiceImpl {
-    private UserDao userDao;
-    private RoleDao roleDao;
-    private PasswordEncoder passwordEncoder;
+@Transactional
+public class UserServiceImpl implements UserService {
+
+    private final RoleDaoImpl roleDao;
+    private final UserDaoImpl userDao;
+
+    public PasswordEncoder bCryptPasswordEncoder() {
+        return new BCryptPasswordEncoder(12);
+    }
 
     @Autowired
-    public UserServiceImpl(UserDao userDao, RoleDao roleDao, PasswordEncoder passwordEncoder) {
-        this.userDao = userDao;
+    public UserServiceImpl(RoleDaoImpl roleDao, UserDaoImpl userDao) {
         this.roleDao = roleDao;
-        this.passwordEncoder = passwordEncoder;
+        this.userDao = userDao;
     }
 
-    public User findUserById(Long userId) {
-        Optional<User> userFromDb = userDao.findById(userId);
-        return userFromDb.orElse(new User());
-    }
-
-    public List<User> allUsers() {
-        return userDao.findAll();
-    }
-
-    public boolean saveUser(User user) {
-        System.out.println("Start to save user...");
-        User userFromDB = userDao.findByUsername(user.getUsername());
-        System.out.println("User from DB: " + userFromDB);
-        System.out.println("User from register form: " + user);
-
-        if (userFromDB != null) {
-            return false;
-        }
-        roleDao.save(new Role(1L, "ROLE_USER"));
-
-        user.setRoles(Collections.singleton(roleDao.getById(1L)));
-        userDao.save(user);
-        System.out.println("User was save: " + user);
+    public boolean addRole(Role role) {
+        Role userBas = roleDao.findByName(role.getRole());
+        if(userBas != null) {return false;}
+        roleDao.add(role);
         return true;
     }
 
-//    public void update(long id, User user) {
-//        User userFromDB = userDao.findById(id).orElse(new User());
-//        userFromDB.setUsername(user.getUsername());
-//        userFromDB.setPassword(user.getPassword());
-//        userFromDB.setFullname(user.getFullname());
-//        userFromDB.setEmail(user.getEmail());
-//        userFromDB.setPhone(user.getPhone());
-//        userDao.save(userFromDB);
-//    }
+    public Role findRoleByName(String name) { return roleDao.findByName(name); }
 
-//    public boolean deleteUser(Long userId) {
-//        if (userDao.findById(userId).isPresent()) {
-//            userDao.deleteById(userId);
-//            return true;
-//        }
-//        return false;
-//    }
+    public List<Role> listRoles() { return roleDao.listRoles(); }
+
+    public Role findRoleById(Long id) {
+        return roleDao.findById(id);
+    }
+
+    public List<Role> listByRole(List<String> name) {
+        return roleDao.listByName(name);
+    }
+
+    public boolean add(User user) {
+        User userBas = userDao.findByName(user.getUsername());
+        if(userBas != null) {return false;}
+        user.setPassword(bCryptPasswordEncoder().encode(user.getPassword()));
+        userDao.add(user);
+        return true;
+    }
+
+    public boolean addUserWithRole(User user, String rolename) {
+        User userBas = userDao.findByName(user.getUsername());
+        if(userBas != null) {return false;}
+        Role role = roleDao.findByName(rolename);
+        if (role == null) {
+            roleDao.add(new Role(rolename));
+        }
+        List<Role> roles = new ArrayList<>();
+        roles.add(role);
+        user.setRoles(roles);
+        user.setPassword(bCryptPasswordEncoder().encode(user.getPassword()));
+        userDao.add(user);
+        return true;
+    }
+
+    public List<User> listUsers() {
+        return userDao.listUsers();
+    }
+
+    public void delete(Long id) {
+        userDao.delete(id);
+    }
+
+    public void update(User user) {
+        User userBas = findUserById(user.getId());
+        System.out.println(userBas);
+        System.out.println(user);
+        if(!userBas.getPassword().equals(user.getPassword())) {
+            user.setPassword(bCryptPasswordEncoder().encode(user.getPassword()));
+        }
+        userDao.update(user);
+    }
+
+    public User findUserById(Long id) {
+        return userDao.findById(id);
+    }
+
+    public User findUserByUsername(String userName) {
+        return userDao.findByName(userName);
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User userBas = findUserByUsername(username);
+        if (userBas == null) {
+            throw new UsernameNotFoundException(username + " not found");
+        }
+        UserDetails user = new org.springframework.security.core.userdetails.User(userBas.getUsername(), userBas.getPassword(), aug(userBas.getRoles()));
+        return userBas;
+    }
+
+    private Collection<? extends GrantedAuthority> aug(Collection<Role> roles) {
+        return roles.stream().map(r -> new SimpleGrantedAuthority(r.getRole()))
+                .collect(Collectors.toList());
+    }
 }
