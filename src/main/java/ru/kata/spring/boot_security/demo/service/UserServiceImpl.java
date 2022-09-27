@@ -26,15 +26,13 @@ public class UserServiceImpl implements UserService {
 
     private final RoleDaoImpl roleDao;
     private final UserDaoImpl userDao;
-
-    public PasswordEncoder bCryptPasswordEncoder() {
-        return new BCryptPasswordEncoder(12);
-    }
+    private final PasswordEncoder passwordEncoder;
 
     @Autowired
-    public UserServiceImpl(RoleDaoImpl roleDao, UserDaoImpl userDao) {
+    public UserServiceImpl(RoleDaoImpl roleDao, UserDaoImpl userDao, PasswordEncoder passwordEncoder) {
         this.roleDao = roleDao;
         this.userDao = userDao;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public boolean addRole(Role role) {
@@ -59,7 +57,7 @@ public class UserServiceImpl implements UserService {
     public boolean add(User user) {
         User userBas = userDao.findByName(user.getUsername());
         if(userBas != null) {return false;}
-        user.setPassword(bCryptPasswordEncoder().encode(user.getPassword()));
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         userDao.add(user);
         return true;
     }
@@ -74,7 +72,7 @@ public class UserServiceImpl implements UserService {
         List<Role> roles = new ArrayList<>();
         roles.add(role);
         user.setRoles(roles);
-        user.setPassword(bCryptPasswordEncoder().encode(user.getPassword()));
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         userDao.add(user);
         return true;
     }
@@ -92,7 +90,7 @@ public class UserServiceImpl implements UserService {
         System.out.println(userBas);
         System.out.println(user);
         if(!userBas.getPassword().equals(user.getPassword())) {
-            user.setPassword(bCryptPasswordEncoder().encode(user.getPassword()));
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
         userDao.update(user);
     }
