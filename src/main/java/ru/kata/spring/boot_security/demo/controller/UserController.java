@@ -50,12 +50,6 @@ public class UserController {
         return "redirect:/login";
     }
 
-    @GetMapping("/admin/delete/{id}")
-    public String deleteUser(@PathVariable("id") Long id) {
-        userService.delete(id);
-        return "redirect:/admin";
-    }
-
     @GetMapping("/admin/update/{id}")
     public String updateUserForm(@PathVariable("id") Long id, Model model) {
         User user = userService.findUserById(id);
@@ -70,6 +64,12 @@ public class UserController {
         List<Role> liRo = userService.listByRole(lsr);
         user.setRoles(liRo);
         userService.update(user);
+        return "redirect:/admin";
+    }
+
+    @DeleteMapping("/admin/delete/{id}")
+    public String deleteUser(@PathVariable long id) {
+        userService.delete(id);
         return "redirect:/admin";
     }
 }
